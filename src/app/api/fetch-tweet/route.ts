@@ -3,9 +3,118 @@ import { parseTweetUrl } from "@/lib/tweet-parser";
 import type { TweetData, TweetMedia } from "@/lib/types";
 
 /**
- * Fetch tweet data using Twitter's Syndication API.
- * This is the same API used by Vercel's react-tweet library â free, no auth required.
+ * Fetch tweet data using FXTwitter API (primary) with Syndication API fallback.
+ * FXTwitter returns full text for Note Tweets (long tweets), while
+ * the Syndication API truncates at 280 characters.
  */
+
+// -- FXTwitter API (primary - returns full Note Tweet text) --
+
+interface FxAuthor {
+  name?: string;
+  screen_name?: string;
+  avatar_url?: string;
+  verified?: boolean;
+}
+
+interface FxMedia {
+  type?: string;
+  url?: string;
+  thumbnail_url?: string;
+  width?: number;
+  height?: number;
+  altText?: string;
+  duration?: number;
+}
+
+interface FxTweet {
+  id?: string;
+  text?: string;
+  author?: FxAuthor;
+  created_at?: string;
+  likes?: number;
+  retweets?: number;
+  replies?: number;
+  views?: number;
+  media?: { all?: FxMedia[] };
+  quote?: FxTweet;
+}
+
+async function fetchFromFxTwitter(tweetId: string): Promise<TweetData | null> {
+  try {
+    const res = await fetch(
+      `https://api.fxtwitter.com/status/${tweetId}`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        next: { revalidate: 300 },
+      }
+    );
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const tweet = data?.tweet as FxTweet | undefined;
+    if (!tweet) return null;
+
+    return transformFxTweet(tweet, tweetId);
+  } catch {
+    return null;
+  }
+}
+
+function transformFxTweet(raw: FxTweet, tweetId: string): TweetData {
+  const media: TweetMedia[] = [];
+
+  if (raw.media?.all) {
+    for (const m of raw.media.all) {
+      if (m.type === "photo") {
+        media.push({
+          type: "photo",
+          url: m.url || "",
+          width: m.width || 0,
+          height: m.height || 0,
+          altText: m.altText,
+        });
+      } else if (m.type === "video" || m.type === "gif") {
+        media.push({
+          type: "video",
+          thumbnailUrl: m.thumbnail_url || m.url || "",
+          url: m.url,
+          duration: m.duration,
+        });
+      }
+    }
+  }
+
+  return {
+    id: raw.id || tweetId,
+    text: raw.text || "",
+    author: {
+      name: raw.author?.name || "Unknown",
+      username: raw.author?.screen_name || "unknown",
+      profileImageUrl: raw.author?.avatar_url || "",
+      verified: raw.author?.verified || false,
+    },
+    createdAt: raw.created_at || "",
+    media,
+    metrics: {
+      likes: raw.likes || 0,
+      retweets: raw.retweets || 0,
+      replies: raw.replies || 0,
+      views: raw.views,
+    },
+    quotedTweet: raw.quote
+      ? transformFxTweet(raw.quote, raw.quote.id || "")
+      : undefined,
+    sourceUrl: `https://x.com/i/status/${tweetId}`,
+  };
+}
+
+// -- Syndication API (fallback) --
+
 async function fetchTweetFromSyndication(tweetId: string): Promise<unknown> {
   const url = `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=en&token=0`;
 
@@ -24,9 +133,6 @@ async function fetchTweetFromSyndication(tweetId: string): Promise<unknown> {
   return res.json();
 }
 
-/**
- * Transform raw syndication API response into our TweetData format.
- */
 function transformSyndicationData(
   raw: Record<string, unknown>,
   sourceUrl: string
@@ -71,7 +177,6 @@ function transformSyndicationData(
     }
   }
 
-  // Extract photo URLs from entities if mediaDetails is not available
   if (media.length === 0 && raw.photos) {
     const photos = raw.photos as Array<Record<string, unknown>>;
     for (const p of photos) {
@@ -120,6 +225,8 @@ function transformSyndicationData(
   };
 }
 
+// -- Route handler --
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -140,6 +247,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Try FXTwitter first (full Note Tweet text)
+    const fxResult = await fetchFromFxTwitter(parsed.tweetId);
+    if (fxResult) {
+      fxResult.sourceUrl = url;
+      return NextResponse.json({ tweet: fxResult });
+    }
+
+    // Fallback to Syndication API
     const rawData = await fetchTweetFromSyndication(parsed.tweetId);
     const tweetData = transformSyndicationData(
       rawData as Record<string, unknown>,

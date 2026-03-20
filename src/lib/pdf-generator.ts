@@ -77,7 +77,7 @@ export async function generatePDF(
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(232, 237, 235); // #E8EDEB
-  doc.text(`@${author.username} Â· ${author.name}`, margin, 23);
+  doc.text(`@${author.username} - ${author.name}`, margin, 23);
 
   // Date & source
   doc.setFontSize(8);
@@ -89,7 +89,7 @@ export async function generatePDF(
 
   if (isThread) {
     doc.text(
-      `Thread Â· ${(data as ThreadData).totalTweets} tweets`,
+      `Thread - ${(d-ta as ThreadData).totalTweets} tweets`,
       pageWidth - margin - 35,
       30
     );
@@ -173,7 +173,7 @@ export async function generatePDF(
         doc.setTextColor(100, 100, 100);
         doc.setFontSize(9);
         doc.setFont("helvetica", "italic");
-        doc.text("[Video content â see original tweet]", margin, y);
+                doc.text("[Video content - see original tweet]", margin, y);
         y += 6;
       }
     }
@@ -187,8 +187,6 @@ export async function generatePDF(
 
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.3);
-      doc.line(margin + 5, y, margin + 5, y + 15);
-
       doc.setTextColor(100, 100, 100);
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
@@ -204,10 +202,17 @@ export async function generatePDF(
         contentWidth - 10
       );
       let qtY = y + 9;
-      for (const line of qtLines.slice(0, 4)) {
+      for (const line of qtLines.slice(0, 8)) {
+                if (qtY > pageHeight - 25) {
+                            doc.addPage();
+                            qtY = margin;
+                }
         doc.text(line, margin + 8, qtY);
         qtY += 4.5;
       }
+
+            // Draw the left border line spanning full quote height
+            doc.line(margin + 5, y, margin + 5, qtY - 2);
       y = qtY + 5;
     }
 
@@ -216,13 +221,13 @@ export async function generatePDF(
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     const metricsStr = [
-      `â¡ ${tweet.metrics.likes}`,
-      `â» ${tweet.metrics.retweets}`,
-      `ð¬ ${tweet.metrics.replies}`,
-      tweet.metrics.views ? `ð ${tweet.metrics.views}` : "",
+      `Likes: ${tweet.metrics.likes}`,
+      `RT: ${tweet.metrics.retweets}`,
+      `Replies: ${tweet.metrics.replies}`,
+            tweet.metrics.views ? `Views: ${tweet.metrics.views}` : "",
     ]
       .filter(Boolean)
-      .join("   ");
+            .join("  |  ");
     doc.text(metricsStr, margin, y);
     y += 5;
 
@@ -244,7 +249,7 @@ export async function generatePDF(
     doc.setTextColor(150, 170, 165);
     doc.setFontSize(7);
     doc.text(
-      `Extracted from X Â· ${new Date().toISOString().split("T")[0]} Â· Page ${p}/${totalPages}`,
+            `Extracted from X - ${new Date().toISOString().split("T")[0]} - Page ${p}/${totalPages}`,
       margin,
       pageHeight - 5
     );

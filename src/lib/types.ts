@@ -39,6 +39,10 @@ export interface TweetData {
   quotedTweet?: TweetData;
   sourceUrl: string;
   isThread?: boolean;
+  /** True when the tweet is an X Article (long-form content). */
+  isArticle?: boolean;
+  /** Title of the X Article, if applicable. */
+  articleTitle?: string;
 }
 
 export interface ThreadData {

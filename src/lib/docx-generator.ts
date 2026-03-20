@@ -15,7 +15,7 @@ import {
   TabStopType,
   ExternalHyperlink,
   Packer,
-} from "docx"
+} from "docx";
 import type { TweetData, ThreadData } from "./types";
 
 /**
@@ -144,7 +144,7 @@ export async function generateDOCX(
       new Paragraph({
         children: [
           new TextRun({
-            text: `Thread - ${tweets.length} tweets`,
+            text: `Thread Â· ${tweets.length} tweets`,
             size: 18,
             font: "Calibri",
             color: "00684A",
@@ -187,7 +187,7 @@ export async function generateDOCX(
               color: "00ED64",
             }),
             new TextRun({
-              text: `  -  ${formatDate(tweet.createdAt)}`,
+              text: `  Â·  ${formatDate(tweet.createdAt)}`,
               size: 18,
               font: "Calibri",
               color: "999999",
@@ -217,7 +217,40 @@ export async function generateDOCX(
       );
     }
 
-  // Tweet text - split into paragraphs at newlines
+    // Article title (if X Article)
+    if (tweet.isArticle && tweet.articleTitle) {
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: "[Article] ",
+              size: 16,
+              font: "Calibri",
+              color: "00684A",
+              bold: true,
+            }),
+          ],
+          spacing: { after: 50 },
+        })
+      );
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: tweet.articleTitle,
+              bold: true,
+              size: 28,
+              font: "Calibri",
+              color: "001E2B",
+            }),
+          ],
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 },
+        })
+      );
+    }
+
+    // Tweet text â split into paragraphs at newlines
     const textParagraphs = tweet.text.split(/\n+/).filter(Boolean);
     for (const para of textParagraphs) {
       children.push(
@@ -249,6 +282,7 @@ export async function generateDOCX(
                     width: imgData.width,
                     height: imgData.height,
                   },
+                  type: "jpg",
                 }),
               ],
               spacing: { before: 100, after: 100 },
@@ -275,7 +309,7 @@ export async function generateDOCX(
           new Paragraph({
             children: [
               new TextRun({
-                text: "[Video content - see original tweet]",
+                text: "[Video content â see original tweet]",
                 size: 18,
                 font: "Calibri",
                 color: "999999",
@@ -326,10 +360,10 @@ export async function generateDOCX(
         children: [
           new TextRun({
             text: [
-              `Likes: ${tweet.metrics.likes}`,
-              `RT: ${tweet.metrics.retweets}`,
-              `Replies: ${tweet.metrics.replies}`,
-            tweet.metrics.views ? `Views: ${tweet.metrics.views}` : "",
+              `â¡ ${tweet.metrics.likes}`,
+              `â» ${tweet.metrics.retweets}`,
+              `ð¬ ${tweet.metrics.replies}`,
+              tweet.metrics.views ? `ð ${tweet.metrics.views}` : "",
             ]
               .filter(Boolean)
               .join("    "),
@@ -361,7 +395,7 @@ export async function generateDOCX(
 
   const doc = new Document({
     creator: "X Content Extractor",
-    title: `X Extract - @${author.username}`,
+    title: `X Extract â @${author.username}`,
     description: `Content extracted from X/Twitter by @${author.username}`,
     sections: [
       {
@@ -399,7 +433,7 @@ export async function generateDOCX(
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `Extracted from X - ${new Date().toISOString().split("T")[0]}  -  Page `,
+                    text: `Extracted from X Â· ${new Date().toISOString().split("T")[0]}  Â·  Page `,
                     size: 14,
                     font: "Calibri",
                     color: "999999",

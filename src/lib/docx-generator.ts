@@ -9,7 +9,7 @@ import {
   NumberFormat,
   AlignmentType,
   BorderStyle,
-  HeadingLevel
+  HeadingLevel,
   ShadingType,
   TabStopPosition,
   TabStopType,

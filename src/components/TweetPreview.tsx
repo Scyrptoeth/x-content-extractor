@@ -63,6 +63,18 @@ function SingleTweetCard({ tweet, index }: { tweet: TweetData; index?: number })
         </span>
       </div>
 
+      {/* Article Title */}
+      {tweet.isArticle && tweet.articleTitle && (
+        <div className="space-y-2">
+          <span className="inline-block text-xs font-medium px-2 py-0.5 rounded bg-mongo-green/20 text-mongo-green">
+            Article
+          </span>
+          <h3 className="text-white font-bold text-lg leading-snug">
+            {tweet.articleTitle}
+          </h3>
+        </div>
+      )}
+
       {/* Tweet Text */}
       <p className="text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap">
         {tweet.text}

@@ -249,7 +249,6 @@ export async function generateDOCX(
                     width: imgData.width,
                     height: imgData.height,
                   },
-                  type: "jpg",
                 }),
               ],
               spacing: { before: 100, after: 100 },

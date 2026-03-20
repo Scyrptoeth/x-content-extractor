@@ -89,7 +89,7 @@ export async function generatePDF(
 
   if (isThread) {
     doc.text(
-      `Thread - ${(d-ta as ThreadData).totalTweets} tweets`,
+      `Thread - ${(data as ThreadData).totalTweets} tweets`,
       pageWidth - margin - 35,
       30
     );

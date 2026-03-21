@@ -3,9 +3,11 @@ import { parseTweetUrl } from "@/lib/tweet-parser";
 import type { TweetData, TweetMedia, ThreadData } from "@/lib/types";
 
 /**
- * Fetch thread data using FXTwitter API (primary) with Syndication API fallback.
- * FXTwitter returns full text for Note Tweets and article content for X Articles.
- * Syndication API is used for thread structure discovery (parent chain walking).
+ * Fetch thread data from multiple tweet URLs.
+ * Each URL is fetched individually via FXTwitter API, then combined
+ * into a single ThreadData sorted by creation time.
+ *
+ * Accepts: { urls: string[] }
  */
 
 // -- Draft.js article content parser (shared with fetch-tweet route) --
@@ -199,7 +201,7 @@ function parseArticleContent(article: FxArticle): ParsedArticleContent {
   };
 }
 
-// -- FXTwitter API (primary) --
+// -- FXTwitter API types --
 
 interface FxAuthor {
   name?: string;
@@ -232,6 +234,8 @@ interface FxTweet {
   article?: FxArticle;
   replying_to?: string;
 }
+
+// -- Fetch single tweet via FXTwitter --
 
 async function fetchFromFxTwitter(
   tweetId: string
@@ -329,213 +333,87 @@ function transformFxTweet(raw: FxTweet, tweetId: string): TweetData {
   };
 }
 
-// -- Syndication API (for thread structure discovery) --
+/**
+ * Fetch all tweets from multiple URLs, sort by creation date, return as ThreadData.
+ */
+async function fetchThreadFromUrls(urls: string[]): Promise<ThreadData> {
+  // Parse all URLs and extract tweet IDs
+  const parsedUrls = urls
+    .map((u) => ({ url: u, parsed: parseTweetUrl(u) }))
+    .filter((x) => x.parsed !== null) as Array<{
+    url: string;
+    parsed: { tweetId: string; username: string };
+  }>;
 
-async function fetchTweetSyndication(
-  tweetId: string
-): Promise<Record<string, unknown>> {
-  const url = `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=en&token=0`;
+  if (parsedUrls.length === 0) {
+    throw new Error("No valid X/Twitter URLs provided");
+  }
 
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    },
-    next: { revalidate: 300 },
+  // Deduplicate by tweet ID
+  const seen = new Set<string>();
+  const uniqueUrls = parsedUrls.filter((x) => {
+    if (seen.has(x.parsed.tweetId)) return false;
+    seen.add(x.parsed.tweetId);
+    return true;
   });
 
-  if (!res.ok) {
+  // Fetch all tweets in parallel via FXTwitter
+  const results = await Promise.allSettled(
+    uniqueUrls.map(async (x) => {
+      const tweet = await fetchFromFxTwitter(x.parsed.tweetId);
+      if (!tweet) {
+        throw new Error(`Failed to fetch tweet ${x.parsed.tweetId}`);
+      }
+      tweet.sourceUrl = x.url;
+      tweet.isThread = true;
+      return tweet;
+    })
+  );
+
+  // Collect successful fetches
+  const tweets: TweetData[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === "fulfilled") {
+      tweets.push(result.value);
+    } else {
+      errors.push(
+        `Tweet ${uniqueUrls[i].parsed.tweetId}: ${result.reason?.message || "Unknown error"}`
+      );
+    }
+  }
+
+  if (tweets.length === 0) {
     throw new Error(
-      `Syndication API returned ${res.status} for tweet ${tweetId}`
+      `Failed to fetch any tweets. Errors: ${errors.join("; ")}`
     );
   }
 
-  return res.json();
-}
-
-function transformSyndicationTweet(
-  raw: Record<string, unknown>,
-  sourceUrl: string
-): TweetData {
-  const user = raw.user as Record<string, unknown> | undefined;
-  const mediaDetails = raw.mediaDetails as
-    | Array<Record<string, unknown>>
-    | undefined;
-
-  const media: TweetMedia[] = [];
-
-  if (mediaDetails) {
-    for (const m of mediaDetails) {
-      if (m.type === "photo") {
-        media.push({
-          type: "photo",
-          url: m.media_url_https as string,
-          width: (m.original_info as Record<string, number>)?.width ?? 0,
-          height: (m.original_info as Record<string, number>)?.height ?? 0,
-          altText: m.ext_alt_text as string | undefined,
-        });
-      } else if (m.type === "video" || m.type === "animated_gif") {
-        media.push({
-          type: "video",
-          thumbnailUrl: m.media_url_https as string,
-        });
-      }
+  // Sort by creation date (oldest first)
+  tweets.sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    // Handle invalid dates by falling back to ID order (smaller ID = older)
+    if (isNaN(dateA) && isNaN(dateB)) {
+      return BigInt(a.id) < BigInt(b.id) ? -1 : 1;
     }
-  }
+    if (isNaN(dateA)) return -1;
+    if (isNaN(dateB)) return 1;
+    return dateA - dateB;
+  });
 
-  if (media.length === 0 && raw.photos) {
-    const photos = raw.photos as Array<Record<string, unknown>>;
-    for (const p of photos) {
-      media.push({
-        type: "photo",
-        url: p.url as string,
-        width: (p.width as number) || 0,
-        height: (p.height as number) || 0,
-      });
-    }
-  }
-
-  return {
-    id: raw.id_str as string,
-    text: raw.text as string,
-    author: {
-      name: (user?.name as string) || "Unknown",
-      username: (user?.screen_name as string) || "unknown",
-      profileImageUrl: (user?.profile_image_url_https as string) || "",
-      verified: (user?.is_blue_verified as boolean) || false,
-    },
-    createdAt: raw.created_at as string,
-    media,
-    metrics: {
-      likes: (raw.favorite_count as number) || 0,
-      retweets: (raw.retweet_count as number) || 0,
-      replies: (raw.reply_count as number) || 0,
-      views:
-        (
-          raw.views as
-            | { count: string | number | undefined }
-            | undefined
-        )?.count !== undefined
-          ? Number(
-              (raw.views as { count: string | number | undefined }).count
-            )
-          : undefined,
-    },
-    sourceUrl,
-    isThread: true,
-  };
-}
-
-/**
- * Fetch a thread by discovering structure via Syndication API (parent chain),
- * then enriching each tweet with FXTwitter data (full text, articles, Note Tweets).
- */
-async function fetchThread(
-  startTweetId: string,
-  sourceUrl: string
-): Promise<ThreadData> {
-  const tweetIds: string[] = [];
-  const visited = new Set<string>();
-
-  // Step 1: Use Syndication API to discover thread structure (parent chain)
-  let initialRaw: Record<string, unknown>;
-  try {
-    initialRaw = await fetchTweetSyndication(startTweetId);
-  } catch {
-    // If Syndication fails, try FXTwitter for at least the single tweet
-    const fxTweet = await fetchFromFxTwitter(startTweetId);
-    if (fxTweet) {
-      fxTweet.sourceUrl = sourceUrl;
-      return {
-        tweets: [fxTweet],
-        author: fxTweet.author,
-        totalTweets: 1,
-        sourceUrl,
-      };
-    }
-    throw new Error("Failed to fetch tweet from both APIs");
-  }
-
-  const user = initialRaw.user as Record<string, unknown> | undefined;
-  const threadAuthorUsername = (
-    (user?.screen_name as string) || "unknown"
-  ).toLowerCase();
-
-  // Walk up the parent chain to find the thread start
-  const parentIds: string[] = [];
-  let current = initialRaw;
-
-  while (current.parent && !visited.has(current.id_str as string)) {
-    visited.add(current.id_str as string);
-    const parent = current.parent as Record<string, unknown>;
-    const parentUser = parent.user as Record<string, unknown> | undefined;
-
-    // Only follow if same author (a thread is self-replies)
-    if (
-      parentUser &&
-      (parentUser.screen_name as string)?.toLowerCase() ===
-        threadAuthorUsername
-    ) {
-      parentIds.unshift(parent.id_str as string);
-      try {
-        const fullParent = await fetchTweetSyndication(
-          parent.id_str as string
-        );
-        current = fullParent;
-      } catch {
-        break;
-      }
-    } else {
-      break;
-    }
-  }
-
-  // Build ordered list of tweet IDs: parents first, then the initial tweet
-  tweetIds.push(...parentIds);
-  if (!tweetIds.includes(startTweetId)) {
-    tweetIds.push(startTweetId);
-  }
-
-  // Step 2: Enrich each tweet with FXTwitter data (full text, articles)
-  const tweets: TweetData[] = [];
-  let threadAuthor = {
-    name: (user?.name as string) || "Unknown",
-    username: (user?.screen_name as string) || "unknown",
-    profileImageUrl: (user?.profile_image_url_https as string) || "",
-    verified: (user?.is_blue_verified as boolean) || false,
-  };
-
-  for (const tweetId of tweetIds) {
-    // Try FXTwitter first for rich content
-    const fxTweet = await fetchFromFxTwitter(tweetId);
-    if (fxTweet) {
-      fxTweet.sourceUrl = `https://x.com/${threadAuthorUsername}/status/${tweetId}`;
-      fxTweet.isThread = true;
-      tweets.push(fxTweet);
-
-      // Use author info from FXTwitter (more reliable)
-      if (tweets.length === 1) {
-        threadAuthor = { ...fxTweet.author, verified: fxTweet.author.verified || false };
-      }
-    } else {
-      // Fallback: fetch from Syndication and transform
-      try {
-        const raw = await fetchTweetSyndication(tweetId);
-        const tweet = transformSyndicationTweet(
-          raw,
-          `https://x.com/${threadAuthorUsername}/status/${tweetId}`
-        );
-        tweets.push(tweet);
-      } catch {
-        // Skip tweets that fail both APIs
-        console.warn(`Failed to fetch tweet ${tweetId} from both APIs`);
-      }
-    }
-  }
+  const author = tweets[0].author;
+  const sourceUrl = tweets[0].sourceUrl;
 
   return {
     tweets,
-    author: threadAuthor,
+    author: {
+      name: author.name,
+      username: author.username,
+      profileImageUrl: author.profileImageUrl,
+    },
     totalTweets: tweets.length,
     sourceUrl,
   };
@@ -544,21 +422,24 @@ async function fetchThread(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url } = body as { url: string };
+    const { urls } = body as { urls: string[] };
 
-    if (!url) {
-      return NextResponse.json({ error: "URL is required" }, { status: 400 });
-    }
-
-    const parsed = parseTweetUrl(url);
-    if (!parsed) {
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json(
-        { error: "Invalid X/Twitter URL format" },
+        { error: "At least one URL is required" },
         { status: 400 }
       );
     }
 
-    const threadData = await fetchThread(parsed.tweetId, url);
+    // Limit to prevent abuse
+    if (urls.length > 50) {
+      return NextResponse.json(
+        { error: "Maximum 50 tweet URLs per request" },
+        { status: 400 }
+      );
+    }
+
+    const threadData = await fetchThreadFromUrls(urls);
 
     return NextResponse.json({ thread: threadData });
   } catch (error) {

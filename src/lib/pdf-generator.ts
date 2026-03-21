@@ -35,7 +35,75 @@ function formatDate(dateStr: string): string {
 }
 
 /**
+ * Render a single image into the PDF at the current y position.
+ * Returns the new y position after the image.
+ */
+async function renderImageInPDF(
+  doc: jsPDF,
+  imageUrl: string,
+  imageWidth: number,
+  imageHeight: number,
+  y: number,
+  margin: number,
+  contentWidth: number,
+  pageHeight: number
+): Promise<number> {
+  const base64 = await imageToBase64(imageUrl);
+  if (base64) {
+    const imgWidth = Math.min(contentWidth, 120);
+    const aspectRatio = imageHeight / imageWidth || 0.66;
+    const imgHeight = Math.min(imgWidth * aspectRatio, 80);
+
+    if (y + imgHeight > pageHeight - 25) {
+      doc.addPage();
+      y = margin;
+    }
+
+    try {
+      doc.addImage(base64, "JPEG", margin, y, imgWidth, imgHeight);
+      y += imgHeight + 5;
+    } catch {
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(9);
+      doc.text(`[Image: ${imageUrl}]`, margin, y);
+      y += 6;
+    }
+  }
+  return y;
+}
+
+/**
+ * Render text lines into the PDF, handling page breaks.
+ * Returns the new y position.
+ */
+function renderTextLines(
+  doc: jsPDF,
+  text: string,
+  y: number,
+  margin: number,
+  contentWidth: number,
+  pageHeight: number
+): number {
+  doc.setTextColor(30, 30, 30);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+
+  const lines = doc.splitTextToSize(text, contentWidth);
+  for (const line of lines) {
+    if (y > pageHeight - 25) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.text(line, margin, y);
+    y += 5.5;
+  }
+  y += 3;
+  return y;
+}
+
+/**
  * Generate PDF from tweet data with embedded images.
+ * For articles, images are rendered inline at their original positions.
  * Uses Plus Jakarta Sans-compatible styling via jsPDF.
  */
 export async function generatePDF(
@@ -151,53 +219,74 @@ export async function generatePDF(
       y += 3;
     }
 
-    // Tweet text
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
+    // === ARTICLE WITH INLINE IMAGES ===
+    const isInlineArticle = tweet.isArticle && tweet.text.includes("{{IMG:");
 
-    const lines = doc.splitTextToSize(tweet.text, contentWidth);
-    for (const line of lines) {
-      if (y > pageHeight - 25) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(line, margin, y);
-      y += 5.5;
-    }
+    if (isInlineArticle) {
+      // Split text by image markers and render interleaved
+      const segments = tweet.text.split(/(\{\{IMG:\d+\}\})/);
 
-    y += 3;
-
-    // Embed images
-    for (const media of tweet.media) {
-      if (media.type === "photo") {
-        const base64 = await imageToBase64(media.url);
-        if (base64) {
-          const imgWidth = Math.min(contentWidth, 120);
-          const aspectRatio = media.height / media.width || 0.66;
-          const imgHeight = Math.min(imgWidth * aspectRatio, 80);
-
-          if (y + imgHeight > pageHeight - 25) {
-            doc.addPage();
-            y = margin;
+      for (const segment of segments) {
+        const match = segment.match(/\{\{IMG:(\d+)\}\}/);
+        if (match) {
+          // Render image at this position
+          const imgIndex = parseInt(match[1]);
+          const mediaItem = tweet.media[imgIndex];
+          if (mediaItem?.type === "photo") {
+            y = await renderImageInPDF(
+              doc,
+              mediaItem.url,
+              mediaItem.width || 500,
+              mediaItem.height || 330,
+              y,
+              margin,
+              contentWidth,
+              pageHeight
+            );
           }
-
-          try {
-            doc.addImage(base64, "JPEG", margin, y, imgWidth, imgHeight);
-            y += imgHeight + 5;
-          } catch {
-            doc.setTextColor(150, 150, 150);
-            doc.setFontSize(9);
-            doc.text(`[Image: ${media.url}]`, margin, y);
-            y += 6;
-          }
+        } else if (segment.trim()) {
+          // Render text segment
+          y = renderTextLines(doc, segment.trim(), y, margin, contentWidth, pageHeight);
         }
-      } else if (media.type === "video") {
-        doc.setTextColor(100, 100, 100);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "italic");
-        doc.text("[Video content â see original tweet]", margin, y);
-        y += 6;
+      }
+    } else {
+      // === REGULAR TWEET (non-article) â text then images at bottom ===
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+
+      const lines = doc.splitTextToSize(tweet.text, contentWidth);
+      for (const line of lines) {
+        if (y > pageHeight - 25) {
+          doc.addPage();
+          y = margin;
+        }
+        doc.text(line, margin, y);
+        y += 5.5;
+      }
+
+      y += 3;
+
+      // Embed images at the bottom
+      for (const media of tweet.media) {
+        if (media.type === "photo") {
+          y = await renderImageInPDF(
+            doc,
+            media.url,
+            media.width || 500,
+            media.height || 330,
+            y,
+            margin,
+            contentWidth,
+            pageHeight
+          );
+        } else if (media.type === "video") {
+          doc.setTextColor(100, 100, 100);
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "italic");
+          doc.text("[Video content â see original tweet]", margin, y);
+          y += 6;
+        }
       }
     }
 

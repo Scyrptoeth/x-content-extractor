@@ -83,8 +83,15 @@ async function createImageParagraph(
  */
 function createTextParagraphs(text: string): Paragraph[] {
   const paragraphs: Paragraph[] = [];
-  const lines = text.split(/\n+/).filter(Boolean);
-  for (const line of lines) {
+  // Split by single newline; preserve empty lines as paragraph break signals
+  const rawLines = text.split(/\n/);
+  for (const line of rawLines) {
+    // Empty line = paragraph break → add a spacer paragraph
+    if (!line.trim()) {
+      paragraphs.push(new Paragraph({ spacing: { after: 80 } }));
+      continue;
+    }
+
     const isHeading = line.trimStart().startsWith("## ");
     const displayText = isHeading ? line.trimStart().slice(3) : line;
 
@@ -99,7 +106,7 @@ function createTextParagraphs(text: string): Paragraph[] {
             color: "1A1A1A",
           }),
         ],
-        spacing: { before: isHeading ? 120 : 0, after: isHeading ? 100 : 80 },
+        spacing: { before: isHeading ? 160 : 0, after: isHeading ? 120 : 160 },
       })
     );
   }

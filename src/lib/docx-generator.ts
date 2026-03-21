@@ -56,7 +56,54 @@ function formatDate(dateStr: string): string {
 }
 
 /**
+ * Create an image paragraph for DOCX from a media URL.
+ */
+async function createImageParagraph(
+  imageUrl: string
+): Promise<Paragraph | null> {
+  const imgData = await fetchImageBuffer(imageUrl);
+  if (!imgData) return null;
+  return new Paragraph({
+    children: [
+      new ImageRun({
+        data: imgData.buffer,
+        transformation: {
+          width: imgData.width,
+          height: imgData.height,
+        },
+      }),
+    ],
+    spacing: { before: 100, after: 100 },
+  });
+}
+
+/**
+ * Create text paragraphs from a block of text (splitting by newlines).
+ */
+function createTextParagraphs(text: string): Paragraph[] {
+  const paragraphs: Paragraph[] = [];
+  const lines = text.split(/\n+/).filter(Boolean);
+  for (const line of lines) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: line,
+            size: 22,
+            font: "Calibri",
+            color: "1A1A1A",
+          }),
+        ],
+        spacing: { after: 80 },
+      })
+    );
+  }
+  return paragraphs;
+}
+
+/**
  * Generate DOCX from tweet data with embedded images.
+ * For articles, images are rendered inline at their original positions.
  * Uses Plus Jakarta Sans font family.
  */
 export async function generateDOCX(
@@ -250,49 +297,93 @@ export async function generateDOCX(
       );
     }
 
-    // Tweet text â split into paragraphs at newlines
-    const textParagraphs = tweet.text.split(/\n+/).filter(Boolean);
-    for (const para of textParagraphs) {
-      children.push(
-        new Paragraph({
-          children: [
-            new TextRun({
-              text: para,
-              size: 22,
-              font: "Calibri",
-              color: "1A1A1A",
-            }),
-          ],
-          spacing: { after: 80 },
-        })
-      );
-    }
+    // === ARTICLE WITH INLINE IMAGES ===
+    const isInlineArticle = tweet.isArticle && tweet.text.includes("{{IMG:");
 
-    // Embed images
-    for (const media of tweet.media) {
-      if (media.type === "photo") {
-        const imgData = await fetchImageBuffer(media.url);
-        if (imgData) {
-          children.push(
-            new Paragraph({
-              children: [
-                new ImageRun({
-                  data: imgData.buffer,
-                  transformation: {
-                    width: imgData.width,
-                    height: imgData.height,
-                  },
-                }),
-              ],
-              spacing: { before: 100, after: 100 },
-            })
-          );
-        } else {
+    if (isInlineArticle) {
+      // Split text by image markers and render interleaved
+      const segments = tweet.text.split(/(\{\{IMG:\d+\}\})/);
+
+      for (const segment of segments) {
+        const match = segment.match(/\{\{IMG:(\d+)\}\}/);
+        if (match) {
+          // Render image at this position
+          const imgIndex = parseInt(match[1]);
+          const mediaItem = tweet.media[imgIndex];
+          if (mediaItem?.type === "photo") {
+            const imgParagraph = await createImageParagraph(mediaItem.url);
+            if (imgParagraph) {
+              children.push(imgParagraph);
+            } else {
+              children.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: `[Image: ${mediaItem.url}]`,
+                      size: 18,
+                      font: "Calibri",
+                      color: "999999",
+                      italics: true,
+                    }),
+                  ],
+                  spacing: { after: 80 },
+                })
+              );
+            }
+          }
+        } else if (segment.trim()) {
+          // Render text paragraphs
+          const textParagraphs = createTextParagraphs(segment.trim());
+          children.push(...textParagraphs);
+        }
+      }
+    } else {
+      // === REGULAR TWEET â text then images at bottom ===
+      const textParagraphs = tweet.text.split(/\n+/).filter(Boolean);
+      for (const para of textParagraphs) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: para,
+                size: 22,
+                font: "Calibri",
+                color: "1A1A1A",
+              }),
+            ],
+            spacing: { after: 80 },
+          })
+        );
+      }
+
+      // Embed images at the bottom
+      for (const media of tweet.media) {
+        if (media.type === "photo") {
+          const imgParagraph = await createImageParagraph(media.url);
+          if (imgParagraph) {
+            children.push(imgParagraph);
+          } else {
+            children.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `[Image: ${media.url}]`,
+                    size: 18,
+                    font: "Calibri",
+                    color: "999999",
+                    italics: true,
+                  }),
+                ],
+                spacing: { after: 80 },
+              })
+            );
+          }
+        } else if (media.type === "video") {
           children.push(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: `[Image: ${media.url}]`,
+                  text: "[Video content â see original tweet]",
                   size: 18,
                   font: "Calibri",
                   color: "999999",
@@ -303,21 +394,6 @@ export async function generateDOCX(
             })
           );
         }
-      } else if (media.type === "video") {
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: "[Video content â see original tweet]",
-                size: 18,
-                font: "Calibri",
-                color: "999999",
-                italics: true,
-              }),
-            ],
-            spacing: { after: 80 },
-          })
-        );
       }
     }
 

@@ -85,16 +85,24 @@ function renderTextLines(
   contentWidth: number,
   pageHeight: number
 ): number {
-  // Split text into paragraphs to detect ## headings
-  const paragraphs = text.split(/\n/);
+  // Split text by newlines; empty lines signal paragraph breaks
+  const rawLines = text.split(/\n/);
 
-  for (const para of paragraphs) {
+  for (const para of rawLines) {
+    // Empty line = paragraph break → add visible gap
+    if (!para.trim()) {
+      y += 3;
+      continue;
+    }
+
     const isHeading = para.trimStart().startsWith("## ");
     const displayText = isHeading ? para.trimStart().slice(3) : para;
 
     if (!displayText.trim()) continue;
 
     if (isHeading) {
+      // Extra space before heading for visual separation
+      y += 2;
       doc.setTextColor(30, 30, 30);
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
@@ -113,9 +121,9 @@ function renderTextLines(
       doc.text(line, margin, y);
       y += isHeading ? 6 : 5.5;
     }
-    y += isHeading ? 4 : 1;
+    // Inter-paragraph spacing: enough gap to feel like a real article
+    y += isHeading ? 5 : 4;
   }
-  y += 2;
   return y;
 }
 

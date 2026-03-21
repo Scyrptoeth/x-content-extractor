@@ -515,7 +515,7 @@ async function fetchThread(
 
       // Use author info from FXTwitter (more reliable)
       if (tweets.length === 1) {
-        threadAuthor = fxTweet.author;
+        threadAuthor = { ...fxTweet.author, verified: fxTweet.author.verified || false };
       }
     } else {
       // Fallback: fetch from Syndication and transform

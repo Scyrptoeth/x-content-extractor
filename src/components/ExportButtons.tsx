@@ -57,16 +57,16 @@ export default function ExportButtons({ tweet, thread }: ExportButtonsProps) {
 
   return (
     <div className="animate-fade-in-up-delay space-y-3">
-      <h2 className="text-lg font-semibold text-white">Export</h2>
+      <h2 className="text-[15px] font-bold text-xd-text-primary">Export</h2>
       <div className="flex gap-3">
         {/* PDF Button */}
         <button
           onClick={() => handleExport("pdf")}
           disabled={!!generating}
-          className="flex-1 py-3.5 px-5 bg-mongo-green text-mongo-ink font-semibold rounded-xl
-            hover:bg-mongo-green/90 active:scale-[0.98]
+          className="flex-1 py-3 px-5 bg-xd-blue text-white font-bold text-[15px] rounded-full
+            hover:bg-xd-blue-hover active:scale-[0.98]
             disabled:opacity-50 disabled:cursor-not-allowed
-            transition-all duration-200 flex items-center justify-center gap-2.5"
+            transition-all duration-150 flex items-center justify-center gap-2"
         >
           {generating === "pdf" ? (
             <>
@@ -91,11 +91,11 @@ export default function ExportButtons({ tweet, thread }: ExportButtonsProps) {
         <button
           onClick={() => handleExport("docx")}
           disabled={!!generating}
-          className="flex-1 py-3.5 px-5 bg-mongo-slate border border-mongo-green/40 text-mongo-green
-            font-semibold rounded-xl
-            hover:bg-mongo-green/10 hover:border-mongo-green/60 active:scale-[0.98]
+          className="flex-1 py-3 px-5 bg-transparent border border-xd-border text-xd-text-primary
+            font-bold text-[15px] rounded-full
+            hover:bg-xd-elevated hover:border-xd-border-light active:scale-[0.98]
             disabled:opacity-50 disabled:cursor-not-allowed
-            transition-all duration-200 flex items-center justify-center gap-2.5"
+            transition-all duration-150 flex items-center justify-center gap-2"
         >
           {generating === "docx" ? (
             <>

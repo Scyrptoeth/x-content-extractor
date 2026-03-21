@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   description:
     "Extract tweets and threads from X into PDF or DOCX documents for Claude processing",
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>ð</text></svg>",
+    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>",
   },
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen gradient-bg">{children}</body>
+      <body className="min-h-screen bg-xd-black">{children}</body>
     </html>
   );
 }

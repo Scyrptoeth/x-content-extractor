@@ -203,7 +203,7 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                 : "text-xd-text-secondary hover:text-xd-text-primary"
             }`}
           >
-            Single Post / Article
+            Post / Article
           </button>
           <button
             type="button"

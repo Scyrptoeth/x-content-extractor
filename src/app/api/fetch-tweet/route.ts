@@ -21,75 +21,186 @@ interface DraftBlock {
   }>;
 }
 
+interface DraftEntityValue {
+  data?: {
+    caption?: string;
+    mediaItems?: Array<{
+      mediaId: string;
+      localMediaId?: string;
+      mediaCategory?: string;
+    }>;
+  };
+  type?: string;
+  mutability?: string;
+}
+
 interface DraftContent {
   blocks: DraftBlock[];
-  entityMap: Array<{ key: string; value: Record<string, unknown> }>;
+  entityMap:
+    | Array<{ key: string; value: DraftEntityValue }>
+    | Record<string, DraftEntityValue>;
+}
+
+interface FxArticleMediaEntity {
+  media_id: string;
+  media_info?: {
+    __typename?: string;
+    original_img_url?: string;
+    original_img_height?: number;
+    original_img_width?: number;
+  };
 }
 
 interface FxArticle {
   title?: string;
   preview_text?: string;
   content?: DraftContent;
-  cover_media?: Record<string, unknown>;
+  cover_media?: {
+    media_id?: string;
+    media_info?: {
+      original_img_url?: string;
+      original_img_height?: number;
+      original_img_width?: number;
+    };
+  };
+  media_entities?: FxArticleMediaEntity[];
   created_at?: string;
   modified_at?: string;
 }
 
 /**
- * Convert Draft.js blocks into readable plain text with basic formatting.
+ * Convert Draft.js blocks into readable plain text with proper paragraph spacing.
+ * Uses double newlines between paragraphs, single newlines within list groups.
  * Handles: unstyled, headers, blockquotes, list items, and atomic (images).
  */
 function parseDraftBlocksToText(content: DraftContent): string {
-  const lines: string[] = [];
+  const parts: string[] = [];
+  let currentList: string[] = [];
   let orderedIndex = 0;
+
+  function flushList() {
+    if (currentList.length > 0) {
+      parts.push(currentList.join("\n"));
+      currentList = [];
+    }
+  }
 
   for (const block of content.blocks) {
     switch (block.type) {
       case "header-one":
-        lines.push(`\n# ${block.text}\n`);
+        flushList();
         orderedIndex = 0;
+        parts.push(`# ${block.text}`);
         break;
       case "header-two":
-        lines.push(`\n## ${block.text}\n`);
+        flushList();
         orderedIndex = 0;
+        parts.push(`## ${block.text}`);
         break;
       case "header-three":
-        lines.push(`\n### ${block.text}\n`);
+        flushList();
         orderedIndex = 0;
+        parts.push(`### ${block.text}`);
         break;
       case "blockquote":
-        lines.push(`> ${block.text}`);
+        flushList();
         orderedIndex = 0;
+        parts.push(`> ${block.text}`);
         break;
       case "unordered-list-item":
-        lines.push(`- ${block.text}`);
         orderedIndex = 0;
+        currentList.push(`- ${block.text}`);
         break;
       case "ordered-list-item":
         orderedIndex++;
-        lines.push(`${orderedIndex}. ${block.text}`);
+        currentList.push(`${orderedIndex}. ${block.text}`);
         break;
       case "atomic":
-        // Skip atomic blocks (images) â they appear in media
+        flushList();
         orderedIndex = 0;
+        // Skip atomic blocks â images are extracted separately
         break;
       default:
         // "unstyled" and any other type
-        if (block.text.trim()) {
-          lines.push(block.text);
-        } else {
-          lines.push(""); // preserve blank lines
-        }
+        flushList();
         orderedIndex = 0;
+        if (block.text.trim()) {
+          parts.push(block.text);
+        }
         break;
     }
   }
+  flushList();
 
-  // Clean up excessive blank lines
-  return lines
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return parts.join("\n\n").trim();
+}
+
+/**
+ * Extract images from an X Article's entityMap and media_entities.
+ * Resolves mediaId references to actual image URLs.
+ * Optionally includes the article cover (hero) image.
+ */
+function extractArticleImages(article: FxArticle): TweetMedia[] {
+  const images: TweetMedia[] = [];
+  const seenUrls = new Set<string>();
+
+  // Build mediaId -> media entity lookup from article.media_entities
+  const mediaMap = new Map<string, FxArticleMediaEntity>();
+  if (article.media_entities) {
+    for (const me of article.media_entities) {
+      mediaMap.set(me.media_id, me);
+    }
+  }
+
+  // Add cover (hero) image first
+  if (article.cover_media?.media_info?.original_img_url) {
+    const url = article.cover_media.media_info.original_img_url;
+    images.push({
+      type: "photo",
+      url,
+      width: article.cover_media.media_info.original_img_width || 0,
+      height: article.cover_media.media_info.original_img_height || 0,
+    });
+    seenUrls.add(url);
+  }
+
+  // Extract inline images from entityMap in order
+  if (article.content?.entityMap) {
+    // Normalize entityMap: can be array of {key, value} or object {key: value}
+    const entityMapArray = Array.isArray(article.content.entityMap)
+      ? article.content.entityMap
+      : Object.entries(article.content.entityMap).map(([key, value]) => ({
+          key,
+          value: value as DraftEntityValue,
+        }));
+
+    // Sort by key to maintain article reading order
+    const sorted = [...entityMapArray].sort(
+      (a, b) => parseInt(a.key) - parseInt(b.key)
+    );
+
+    for (const entity of sorted) {
+      if (entity.value?.type === "MEDIA" && entity.value.data?.mediaItems) {
+        for (const item of entity.value.data.mediaItems) {
+          const mediaEntity = mediaMap.get(item.mediaId);
+          if (mediaEntity?.media_info?.original_img_url) {
+            const url = mediaEntity.media_info.original_img_url;
+            if (!seenUrls.has(url)) {
+              images.push({
+                type: "photo",
+                url,
+                width: mediaEntity.media_info.original_img_width || 0,
+                height: mediaEntity.media_info.original_img_height || 0,
+              });
+              seenUrls.add(url);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return images;
 }
 
 // -- FXTwitter API (primary) --
@@ -190,6 +301,10 @@ function transformFxTweet(raw: FxTweet, tweetId: string): TweetData {
     if (!text && raw.article.preview_text) {
       text = raw.article.preview_text;
     }
+
+    // Extract article images from entityMap + media_entities
+    const articleImages = extractArticleImages(raw.article);
+    media.push(...articleImages);
   }
 
   return {

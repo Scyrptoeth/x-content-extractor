@@ -18,7 +18,6 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
   const [urls, setUrls] = useState<string[]>([""]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // When switching to single mode, keep only the first URL
   useEffect(() => {
     if (mode === "single" && urls.length > 1) {
       setUrls([urls[0]]);
@@ -33,9 +32,8 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
 
   const addUrl = () => {
     setUrls((prev) => [...prev, ""]);
-    // Focus the new input after render
     setTimeout(() => {
-      const lastIdx = urls.length; // will be the new index after state update
+      const lastIdx = urls.length;
       inputRefs.current[lastIdx]?.focus();
     }, 50);
   };
@@ -65,22 +63,22 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-5">
+    <form onSubmit={handleSubmit} className="w-full space-y-4">
       {/* URL Input(s) */}
       <div className="space-y-3">
         {urls.map((url, index) => (
           <div key={index} className="relative flex items-center gap-2">
             {/* Thread number badge */}
             {mode === "thread" && (
-              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-mongo-green/15 border border-mongo-green/30 flex items-center justify-center text-mongo-green text-xs font-bold">
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-xd-blue/15 border border-xd-blue/30 flex items-center justify-center text-xd-blue text-xs font-bold">
                 {index + 1}
               </span>
             )}
 
             <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
                 <svg
-                  className="w-5 h-5 text-mongo-green/60"
+                  className="w-[18px] h-[18px] text-xd-text-secondary"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -102,13 +100,13 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                 onChange={(e) => updateUrl(index, e.target.value)}
                 placeholder={
                   mode === "thread" && index > 0
-                    ? `Paste tweet #${index + 1} URL from the thread...`
-                    : "Paste X/Twitter link here... (e.g. https://x.com/user/status/123456)"
+                    ? `Paste post #${index + 1} URL from the thread...`
+                    : "Paste X post link here..."
                 }
-                className="w-full pl-12 pr-20 py-4 bg-mongo-slate/80 border border-mongo-mist/10 rounded-xl
-                  text-white placeholder:text-mongo-mist/40 font-sans text-[15px]
-                  focus:outline-none focus:ring-2 focus:ring-mongo-green/50 focus:border-mongo-green/30
-                  transition-all duration-200"
+                className="w-full pl-11 pr-20 py-3 bg-xd-black border border-xd-border rounded-xl
+                  text-xd-text-primary placeholder:text-xd-text-secondary/60 text-[15px]
+                  focus:outline-none focus:ring-1 focus:ring-xd-blue focus:border-xd-blue
+                  transition-colors duration-150"
                 disabled={isLoading}
               />
               {/* Validation + remove button */}
@@ -116,9 +114,9 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                 {url && (
                   <>
                     {isValidUrl(url) ? (
-                      <span className="text-mongo-green text-sm font-medium flex items-center gap-1">
+                      <span className="text-xd-green text-[13px] font-medium flex items-center gap-1">
                         <svg
-                          className="w-4 h-4"
+                          className="w-3.5 h-3.5"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
@@ -131,7 +129,7 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                         Valid
                       </span>
                     ) : (
-                      <span className="text-red-400 text-sm">Invalid URL</span>
+                      <span className="text-xd-red text-[13px]">Invalid</span>
                     )}
                   </>
                 )}
@@ -139,7 +137,7 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                   <button
                     type="button"
                     onClick={() => removeUrl(index)}
-                    className="p-1 rounded-md text-mongo-mist/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                    className="p-1 rounded-full text-xd-text-secondary hover:text-xd-red hover:bg-xd-red-faded transition-colors"
                     title="Remove this URL"
                   >
                     <svg
@@ -168,11 +166,11 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
             type="button"
             onClick={addUrl}
             disabled={isLoading}
-            className="w-full py-3 border-2 border-dashed border-mongo-mist/15 rounded-xl
-              text-mongo-mist/50 text-sm font-medium
-              hover:border-mongo-green/30 hover:text-mongo-green/70 hover:bg-mongo-green/5
+            className="w-full py-2.5 border border-dashed border-xd-border rounded-xl
+              text-xd-text-secondary text-[13px] font-medium
+              hover:border-xd-blue/40 hover:text-xd-blue hover:bg-xd-blue/5
               disabled:opacity-40 disabled:cursor-not-allowed
-              transition-all duration-200 flex items-center justify-center gap-2"
+              transition-colors duration-150 flex items-center justify-center gap-2"
           >
             <svg
               className="w-4 h-4"
@@ -187,50 +185,50 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            Add another tweet from this thread
+            Add another post from this thread
           </button>
         )}
       </div>
 
       {/* Mode Toggle */}
       <div className="flex items-center gap-3">
-        <span className="text-mongo-mist/60 text-sm">Mode:</span>
-        <div className="flex bg-mongo-slate/60 rounded-lg p-1 border border-mongo-mist/10">
+        <span className="text-xd-text-secondary text-[13px]">Mode:</span>
+        <div className="flex bg-xd-black rounded-full p-0.5 border border-xd-border">
           <button
             type="button"
             onClick={() => setMode("single")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+            className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors duration-150 ${
               mode === "single"
-                ? "bg-mongo-green text-mongo-ink"
-                : "text-mongo-mist/60 hover:text-white"
+                ? "bg-xd-blue text-white"
+                : "text-xd-text-secondary hover:text-xd-text-primary"
             }`}
           >
-            Single Tweet
+            Single Post
           </button>
           <button
             type="button"
             onClick={() => setMode("thread")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+            className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-colors duration-150 ${
               mode === "thread"
-                ? "bg-mongo-green text-mongo-ink"
-                : "text-mongo-mist/60 hover:text-white"
+                ? "bg-xd-blue text-white"
+                : "text-xd-text-secondary hover:text-xd-text-primary"
             }`}
           >
             Thread
           </button>
         </div>
         {mode === "thread" && validUrls.length > 0 && (
-          <span className="text-mongo-green/70 text-sm">
-            {validUrls.length} tweet{validUrls.length !== 1 ? "s" : ""} ready
+          <span className="text-xd-blue text-[13px]">
+            {validUrls.length} post{validUrls.length !== 1 ? "s" : ""} ready
           </span>
         )}
       </div>
 
       {/* Thread mode helper text */}
       {mode === "thread" && (
-        <p className="text-mongo-mist/40 text-xs leading-relaxed">
-          Paste each tweet URL from the thread in order. The app will fetch all
-          tweets and combine them into a single document sorted by posting time.
+        <p className="text-xd-text-secondary/70 text-[13px] leading-relaxed">
+          Paste each post URL from the thread. They will be fetched in parallel
+          and sorted by posting time.
         </p>
       )}
 
@@ -238,10 +236,10 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
       <button
         type="submit"
         disabled={!canSubmit}
-        className="w-full py-4 bg-mongo-green text-mongo-ink font-semibold text-[15px] rounded-xl
-          hover:bg-mongo-green/90 active:scale-[0.99]
-          disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-mongo-green
-          transition-all duration-200 flex items-center justify-center gap-2"
+        className="w-full py-3 bg-xd-blue text-white font-bold text-[15px] rounded-full
+          hover:bg-xd-blue-hover active:scale-[0.98]
+          disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-xd-blue
+          transition-all duration-150 flex items-center justify-center gap-2"
       >
         {isLoading ? (
           <>
@@ -265,8 +263,8 @@ export default function TweetInput({ onFetch, isLoading }: TweetInputProps) {
               />
             </svg>
             {mode === "thread"
-              ? `Extracting ${validUrls.length} tweet${validUrls.length !== 1 ? "s" : ""}...`
-              : "Extracting content..."}
+              ? `Extracting ${validUrls.length} post${validUrls.length !== 1 ? "s" : ""}...`
+              : "Extracting..."}
           </>
         ) : (
           <>

@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Content Extractor",
   description:
-    "Extract posts and threads from X into clean PDF or DOCX documents",
+    "Extract posts, articles and threads from X into clean PDF or DOCX documents",
   icons: {
     icon: "/favicon.svg",
   },

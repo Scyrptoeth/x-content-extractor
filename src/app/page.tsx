@@ -12,7 +12,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleFetch = async (url: string, mode: "single" | "thread") => {
+  const handleFetch = async (urls: string[], mode: "single" | "thread") => {
     setIsLoading(true);
     setError(null);
     setTweet(null);
@@ -23,7 +23,7 @@ export default function Home() {
         const res = await fetch("/api/fetch-thread", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ urls }),
         });
 
         const data = await res.json();
@@ -37,7 +37,7 @@ export default function Home() {
         const res = await fetch("/api/fetch-tweet", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
+          body: JSON.stringify({ url: urls[0] }),
         });
 
         const data = await res.json();
@@ -111,7 +111,7 @@ export default function Home() {
           Built for extracting X content into documents that Claude can process.
         </p>
         <p className="mt-1">
-          Uses Twitter Syndication API Â· No authentication required
+          Uses FXTwitter API · No authentication required
         </p>
       </footer>
     </main>

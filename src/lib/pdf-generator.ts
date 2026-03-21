@@ -8,7 +8,7 @@ async function imageToBase64(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);
     const blob = await res.blob();
-    return new Promise((resolve) => {
+    return new Promise((resolve) => 
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = () => resolve(null);
@@ -356,7 +356,7 @@ export async function generatePDF(
     doc.setTextColor(150, 170, 165);
     doc.setFontSize(7);
     doc.text(
-      `Extracted from X Â· ${new Date().toISOString().split("T")[0]} Â· Page ${p}/${totalPages}`,
+      `Extracted from X - ${new Date().toISOString().split("T")[0]} - Page ${p}/${totalPages}`,
       margin,
       pageHeight - 5
     );

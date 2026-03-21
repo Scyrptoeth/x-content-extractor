@@ -74,6 +74,7 @@ async function renderImageInPDF(
 
 /**
  * Render text lines into the PDF, handling page breaks.
+ * Lines starting with ## are rendered as bold headings (## removed).
  * Returns the new y position.
  */
 function renderTextLines(
@@ -84,20 +85,37 @@ function renderTextLines(
   contentWidth: number,
   pageHeight: number
 ): number {
-  doc.setTextColor(30, 30, 30);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "normal");
+  // Split text into paragraphs to detect ## headings
+  const paragraphs = text.split(/\n/);
 
-  const lines = doc.splitTextToSize(text, contentWidth);
-  for (const line of lines) {
-    if (y > pageHeight - 25) {
-      doc.addPage();
-      y = margin;
+  for (const para of paragraphs) {
+    const isHeading = para.trimStart().startsWith("## ");
+    const displayText = isHeading ? para.trimStart().slice(3) : para;
+
+    if (!displayText.trim()) continue;
+
+    if (isHeading) {
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+    } else {
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
     }
-    doc.text(line, margin, y);
-    y += 5.5;
+
+    const lines = doc.splitTextToSize(displayText, contentWidth);
+    for (const line of lines) {
+      if (y > pageHeight - 25) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += isHeading ? 6 : 5.5;
+    }
+    y += isHeading ? 4 : 1;
   }
-  y += 3;
+  y += 2;
   return y;
 }
 
@@ -145,7 +163,7 @@ export async function generatePDF(
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(232, 237, 235); // #E8EDEB
-  doc.text(`@${author.username} Â· ${author.name}`, margin, 23);
+  doc.text(`@${author.username} · ${author.name}`, margin, 23);
 
   // Date & source
   doc.setFontSize(8);
@@ -157,7 +175,7 @@ export async function generatePDF(
 
   if (isThread) {
     doc.text(
-      `Thread Â· ${(data as ThreadData).totalTweets} tweets`,
+      `Thread · ${(data as ThreadData).totalTweets} tweets`,
       pageWidth - margin - 35,
       30
     );
@@ -250,22 +268,8 @@ export async function generatePDF(
         }
       }
     } else {
-      // === REGULAR TWEET (non-article) â text then images at bottom ===
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-
-      const lines = doc.splitTextToSize(tweet.text, contentWidth);
-      for (const line of lines) {
-        if (y > pageHeight - 25) {
-          doc.addPage();
-          y = margin;
-        }
-        doc.text(line, margin, y);
-        y += 5.5;
-      }
-
-      y += 3;
+      // === REGULAR TWEET (non-article) — text then images at bottom ===
+      y = renderTextLines(doc, tweet.text, y, margin, contentWidth, pageHeight);
 
       // Embed images at the bottom
       for (const media of tweet.media) {
@@ -284,7 +288,7 @@ export async function generatePDF(
           doc.setTextColor(100, 100, 100);
           doc.setFontSize(9);
           doc.setFont("helvetica", "italic");
-          doc.text("[Video content â see original tweet]", margin, y);
+          doc.text("[Video content — see original tweet]", margin, y);
           y += 6;
         }
       }
@@ -328,10 +332,10 @@ export async function generatePDF(
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     const metricsStr = [
-      `â¡ ${tweet.metrics.likes}`,
-      `â» ${tweet.metrics.retweets}`,
-      `ð¬ ${tweet.metrics.replies}`,
-      tweet.metrics.views ? `ð ${tweet.metrics.views}` : "",
+      `♡ ${tweet.metrics.likes}`,
+      `↻ ${tweet.metrics.retweets}`,
+      `💬 ${tweet.metrics.replies}`,
+      tweet.metrics.views ? `👁 ${tweet.metrics.views}` : "",
     ]
       .filter(Boolean)
       .join("   ");

@@ -79,22 +79,27 @@ async function createImageParagraph(
 
 /**
  * Create text paragraphs from a block of text (splitting by newlines).
+ * Lines starting with ## are rendered as bold headings (## removed).
  */
 function createTextParagraphs(text: string): Paragraph[] {
   const paragraphs: Paragraph[] = [];
   const lines = text.split(/\n+/).filter(Boolean);
   for (const line of lines) {
+    const isHeading = line.trimStart().startsWith("## ");
+    const displayText = isHeading ? line.trimStart().slice(3) : line;
+
     paragraphs.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: line,
-            size: 22,
+            text: displayText,
+            bold: isHeading,
+            size: isHeading ? 24 : 22,
             font: "Calibri",
             color: "1A1A1A",
           }),
         ],
-        spacing: { after: 80 },
+        spacing: { before: isHeading ? 120 : 0, after: isHeading ? 100 : 80 },
       })
     );
   }
@@ -191,7 +196,7 @@ export async function generateDOCX(
       new Paragraph({
         children: [
           new TextRun({
-            text: `Thread Â· ${tweets.length} tweets`,
+            text: `Thread · ${tweets.length} tweets`,
             size: 18,
             font: "Calibri",
             color: "00684A",
@@ -234,7 +239,7 @@ export async function generateDOCX(
               color: "00ED64",
             }),
             new TextRun({
-              text: `  Â·  ${formatDate(tweet.createdAt)}`,
+              text: `  ·  ${formatDate(tweet.createdAt)}`,
               size: 18,
               font: "Calibri",
               color: "999999",
@@ -338,23 +343,9 @@ export async function generateDOCX(
         }
       }
     } else {
-      // === REGULAR TWEET â text then images at bottom ===
-      const textParagraphs = tweet.text.split(/\n+/).filter(Boolean);
-      for (const para of textParagraphs) {
-        children.push(
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: para,
-                size: 22,
-                font: "Calibri",
-                color: "1A1A1A",
-              }),
-            ],
-            spacing: { after: 80 },
-          })
-        );
-      }
+      // === REGULAR TWEET — text then images at bottom ===
+      const textParas = createTextParagraphs(tweet.text);
+      children.push(...textParas);
 
       // Embed images at the bottom
       for (const media of tweet.media) {
@@ -383,7 +374,7 @@ export async function generateDOCX(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: "[Video content â see original tweet]",
+                  text: "[Video content — see original tweet]",
                   size: 18,
                   font: "Calibri",
                   color: "999999",
@@ -435,10 +426,10 @@ export async function generateDOCX(
         children: [
           new TextRun({
             text: [
-              `â¡ ${tweet.metrics.likes}`,
-              `â» ${tweet.metrics.retweets}`,
-              `ð¬ ${tweet.metrics.replies}`,
-              tweet.metrics.views ? `ð ${tweet.metrics.views}` : "",
+              `♡ ${tweet.metrics.likes}`,
+              `↻ ${tweet.metrics.retweets}`,
+              `💬 ${tweet.metrics.replies}`,
+              tweet.metrics.views ? `👁 ${tweet.metrics.views}` : "",
             ]
               .filter(Boolean)
               .join("    "),
@@ -470,7 +461,7 @@ export async function generateDOCX(
 
   const doc = new Document({
     creator: "X Content Extractor",
-    title: `X Extract â @${author.username}`,
+    title: `X Extract — @${author.username}`,
     description: `Content extracted from X/Twitter by @${author.username}`,
     sections: [
       {
@@ -508,7 +499,7 @@ export async function generateDOCX(
               new Paragraph({
                 children: [
                   new TextRun({
-                    text: `Extracted from X Â· ${new Date().toISOString().split("T")[0]}  Â·  Page `,
+                    text: `Extracted from X · ${new Date().toISOString().split("T")[0]}  ·  Page `,
                     size: 14,
                     font: "Calibri",
                     color: "999999",

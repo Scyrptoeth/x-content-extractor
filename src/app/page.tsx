@@ -72,7 +72,7 @@ export default function Home() {
           Content Extractor
         </h1>
         <p className="text-xd-text-secondary text-[15px] max-w-sm mx-auto leading-relaxed">
-          Extract any post or thread from X into a clean PDF or DOCX document.
+          Extract any post, article or thread from X into a clean PDF or DOCX document.
         </p>
       </div>
 

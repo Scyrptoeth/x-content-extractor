@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "X Content Extractor",
+  title: "Content Extractor",
   description:
-    "Extract tweets and threads from X into PDF or DOCX documents for Claude processing",
+    "Extract posts and threads from X into clean PDF or DOCX documents",
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>",
+    icon: "/favicon.svg",
   },
 };
 
